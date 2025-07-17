@@ -1,106 +1,62 @@
-import { useEffect, useState, useRef } from "react";
-import "./app.css";
+import { useState } from "react";
 
 function App() {
-  const [serverMessage, setServerMessage] = useState("Loading...");
-  const [messages, setMessages] = useState([
-    {
-      sender: "bot",
-      text: "👋 Hello! Welcome to TasteBot. Try asking about food, movies, music, travel, trends & more.",
-    },
-  ]);
-  const [input, setInput] = useState("");
-  const messagesEndRef = useRef(null);
+  const [genre, setGenre] = useState("");
+  const [movies, setMovies] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  useEffect(() => {
-    fetch("http://localhost:3001/")
-      .then((res) => res.text())
-      .then((data) => setServerMessage(data))
-      .catch(() => setServerMessage("Failed to connect to backend"));
-  }, []);
+  const allowedGenres = ['romance', 'comedy', 'horror', 'thriller', 'fiction', 'drama'];
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
-  function handleSubmit(e) {
+  async function fetchMovies(e) {
     e.preventDefault();
-    if (!input.trim()) return;
-    setMessages((prev) => [
-      ...prev,
-      { sender: "user", text: input },
-    ]);
-    setTimeout(() => {
-      setMessages((prev) => [
-        ...prev,
-        {
-          sender: "bot",
-          text:
-            "🤖 I'm a demo bot. Here's what you said: " +
-            input,
-        },
-      ]);
-    }, 700);
-    setInput("");
+    setError("");
+    setMovies([]);
+    const trimmed = genre.trim().toLowerCase();
+    if (!allowedGenres.includes(trimmed)) {
+      setError(`Only these genres supported: ${allowedGenres.join(", ")}`);
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch(`http://localhost:3001/qloo/genre/${trimmed}`);
+      const data = await res.json();
+      if (data.error) setError(data.error);
+      else setMovies(data.movies || []);
+    } catch (err) {
+      setError("Server error");
+    }
+    setLoading(false);
   }
 
-  const quickReplies = [
-    "Show me Italian restaurants.",
-    "Latest movies to watch?",
-    "Suggest trending songs.",
-    "Travel ideas for this summer.",
-    "Any vegan cafe nearby?",
-    "Fashion trends 2025?",
-  ];
-
   return (
-    <div className="chat-center-bg">
-      <div className="chat-container glassy">
-        <div className="chat-header">
-          <span className="bot-avatar">🤖</span>
-          Qloo TasteBot
+    <div style={{maxWidth:500,margin:"2rem auto",padding:24,borderRadius:12,boxShadow:"0 2px 16px #0001",background:"#fff"}}>
+      <h2>Qloo Movie Search</h2>
+      <form onSubmit={fetchMovies} style={{marginBottom:24}}>
+        <input
+          type="text"
+          value={genre}
+          onChange={e => setGenre(e.target.value)}
+          placeholder="Type genre (e.g. romance)"
+          style={{padding:8,marginRight:8}}
+          disabled={loading}
+        />
+        <button type="submit" disabled={loading || !genre.trim()}>Search</button>
+      </form>
+      {loading && <div>Loading...</div>}
+      {error && <div style={{color:"crimson"}}>{error}</div>}
+      {movies.length > 0 && (
+        <div>
+          <h3>Results:</h3>
+          <ol>
+            {movies.map((movie, i) => (
+              <li key={i}>
+                {movie.title || movie.name || movie.id}
+              </li>
+            ))}
+          </ol>
         </div>
-        <div className="server-status">{serverMessage}</div>
-        <div className="chat-messages">
-          {messages.map((msg, idx) => (
-            <div key={idx} className={`message-row ${msg.sender}`}>
-              <span className="avatar">
-                {msg.sender === "bot" ? "🤖" : "🧑"}
-              </span>
-              <div className={`message-bubble ${msg.sender}`}>
-                {msg.text}
-              </div>
-            </div>
-          ))}
-          <div ref={messagesEndRef} />
-        </div>
-        <form className="chat-input-area" onSubmit={handleSubmit} autoComplete="off">
-          <input
-            type="text"
-            className="chat-input"
-            placeholder="Ask anything…"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            autoFocus
-            aria-label="Chat message input"
-          />
-          <button type="submit" className="chat-send-btn" aria-label="Send">
-            ➤
-          </button>
-        </form>
-        <div className="chat-buttons">
-          {quickReplies.map((prompt, i) => (
-            <button
-              key={i}
-              type="button"
-              className="quick-btn"
-              onClick={() => setInput(prompt)}
-            >
-              {prompt}
-            </button>
-          ))}
-        </div>
-      </div>
+      )}
     </div>
   );
 }
