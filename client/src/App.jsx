@@ -1,15 +1,23 @@
 import { useState, useEffect } from 'react';
 import './App.css';
 
-const API_BASE = 'http://localhost:3001';
+const API_BASE_URL = 'http://localhost:3001';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('search');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [debugLogs, setDebugLogs] = useState([]);
+  const [showDebugConsole, setShowDebugConsole] = useState(false);
+  
+  // Simple search state
   const [genre, setGenre] = useState('comedy');
   const [take, setTake] = useState(10);
   const [movies, setMovies] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  
+  // OpenRouter models
+  const [availableModels, setAvailableModels] = useState([]);
+  const [selectedModel, setSelectedModel] = useState('anthropic/claude-3-haiku');
   
   // Chat functionality
   const [chatMessage, setChatMessage] = useState('');
@@ -25,20 +33,28 @@ export default function App() {
   const [preferences, setPreferences] = useState('');
   const [mood, setMood] = useState('');
   const [recommendations, setRecommendations] = useState('');
-  
-  // Models
-  const [models, setModels] = useState([]);
 
   useEffect(() => {
-    fetchModels();
+    fetchDebugLogs();
+    fetchAvailableModels();
   }, []);
 
-  const fetchModels = async () => {
+  const fetchDebugLogs = async () => {
     try {
-      const response = await fetch(`${API_BASE}/api/openai/models`);
+      const response = await fetch(`${API_BASE_URL}/api/debug/logs`);
+      const data = await response.json();
+      setDebugLogs(data.logs || []);
+    } catch (err) {
+      console.error('Failed to fetch debug logs:', err);
+    }
+  };
+
+  const fetchAvailableModels = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/openrouter/models`);
       const data = await response.json();
       if (data.ok) {
-        setModels(data.models);
+        setAvailableModels(data.models);
       }
     } catch (err) {
       console.error('Failed to fetch models:', err);
@@ -52,7 +68,7 @@ export default function App() {
     setMovies([]);
     
     try {
-      const response = await fetch(`${API_BASE}/api/movies`, {
+      const response = await fetch(`${API_BASE_URL}/api/movies`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ genre, take: +take })
@@ -66,6 +82,7 @@ export default function App() {
       setError(err.message);
     } finally {
       setLoading(false);
+      setTimeout(fetchDebugLogs, 500);
     }
   };
 
@@ -77,20 +94,23 @@ export default function App() {
     setError('');
     
     try {
-      const response = await fetch(`${API_BASE}/api/chat`, {
+      const response = await fetch(`${API_BASE_URL}/api/chat/movies`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: chatMessage })
+        body: JSON.stringify({ 
+          userMessage: chatMessage,
+          model: selectedModel 
+        })
       });
       
       const data = await response.json();
-      if (!data.ok) throw new Error(data.msg || 'Chat failed');
+      if (data.error) throw new Error(data.details || 'Chat failed');
       
       setChatHistory(prev => [...prev, 
         { type: 'user', message: chatMessage },
-        { type: 'assistant', message: data.response }
+        { type: 'assistant', message: data.botReply, model: data.model }
       ]);
-      setChatResponse(data.response);
+      setChatResponse(data.botReply);
       setChatMessage('');
       
       if (data.movies) {
@@ -100,6 +120,7 @@ export default function App() {
       setError(err.message);
     } finally {
       setLoading(false);
+      setTimeout(fetchDebugLogs, 500);
     }
   };
 
@@ -111,23 +132,25 @@ export default function App() {
     setError('');
     
     try {
-      const response = await fetch(`${API_BASE}/api/analyze`, {
+      const response = await fetch(`${API_BASE_URL}/api/analyze/movie`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           movieTitle: analysisMovie, 
-          analysisType 
+          analysisType,
+          model: selectedModel 
         })
       });
       
       const data = await response.json();
-      if (!data.ok) throw new Error(data.msg || 'Analysis failed');
+      if (!data.ok) throw new Error(data.details || 'Analysis failed');
       
       setAnalysisResult(data.analysis);
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
+      setTimeout(fetchDebugLogs, 500);
     }
   };
 
@@ -139,14 +162,18 @@ export default function App() {
     setError('');
     
     try {
-      const response = await fetch(`${API_BASE}/api/recommend`, {
+      const response = await fetch(`${API_BASE_URL}/api/recommendations/personalized`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ preferences, mood })
+        body: JSON.stringify({ 
+          preferences, 
+          mood,
+          model: selectedModel 
+        })
       });
       
       const data = await response.json();
-      if (!data.ok) throw new Error(data.msg || 'Recommendations failed');
+      if (!data.ok) throw new Error(data.details || 'Recommendations failed');
       
       setRecommendations(data.recommendations);
       if (data.availableMovies) {
@@ -156,8 +183,36 @@ export default function App() {
       setError(err.message);
     } finally {
       setLoading(false);
+      setTimeout(fetchDebugLogs, 500);
     }
   };
+
+  const renderModelSelector = () => (
+    <div className="model-selector">
+      <label>AI Model:</label>
+      <select 
+        value={selectedModel}
+        onChange={(e) => setSelectedModel(e.target.value)}
+        className="model-select"
+      >
+        <option value="anthropic/claude-3-haiku">Claude 3 Haiku (Fast)</option>
+        <option value="anthropic/claude-3-sonnet">Claude 3 Sonnet (Balanced)</option>
+        <option value="anthropic/claude-3-opus">Claude 3 Opus (Best)</option>
+        <option value="openai/gpt-3.5-turbo">GPT-3.5 Turbo</option>
+        <option value="openai/gpt-4">GPT-4</option>
+        <option value="meta-llama/llama-3-8b-instruct">Llama 3 8B</option>
+        <option value="meta-llama/llama-3-70b-instruct">Llama 3 70B</option>
+        <option value="google/gemini-pro">Gemini Pro</option>
+        <option value="mistralai/mistral-7b-instruct">Mistral 7B</option>
+        <option value="microsoft/wizardlm-2-8x22b">WizardLM 2 8x22B</option>
+        {availableModels.map(model => (
+          <option key={model.id} value={model.id}>
+            {model.name || model.id}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
 
   const renderSearchTab = () => (
     <div className="tab-content">
@@ -191,6 +246,7 @@ export default function App() {
   const renderChatTab = () => (
     <div className="tab-content">
       <h2>💬 AI Movie Chat</h2>
+      {renderModelSelector()}
       <form onSubmit={sendChatMessage} className="chat-form">
         <div className="form-group">
           <label>Ask about movies:</label>
@@ -211,6 +267,7 @@ export default function App() {
           {chatHistory.map((msg, i) => (
             <div key={i} className={`message ${msg.type}`}>
               <strong>{msg.type === 'user' ? 'You' : 'AI'}:</strong>
+              {msg.model && <span className="model-badge">{msg.model}</span>}
               <p>{msg.message}</p>
             </div>
           ))}
@@ -222,6 +279,7 @@ export default function App() {
   const renderAnalysisTab = () => (
     <div className="tab-content">
       <h2>🎯 Movie Analysis</h2>
+      {renderModelSelector()}
       <form onSubmit={analyzeMovie} className="analysis-form">
         <div className="form-group">
           <label>Movie Title:</label>
@@ -263,6 +321,7 @@ export default function App() {
   const renderRecommendTab = () => (
     <div className="tab-content">
       <h2>⭐ Personalized Recommendations</h2>
+      {renderModelSelector()}
       <form onSubmit={getRecommendations} className="recommend-form">
         <div className="form-group">
           <label>Your Preferences:</label>
@@ -298,13 +357,50 @@ export default function App() {
     </div>
   );
 
+  const renderDebugConsole = () => (
+    <div className="debug-console">
+      <div className="debug-header">
+        <h3>🔍 Debug Console</h3>
+        <button onClick={fetchDebugLogs} className="debug-btn">🔄 Refresh</button>
+      </div>
+      
+      <div className="debug-logs">
+        {debugLogs.map((log) => (
+          <div key={log.id} className="debug-log-entry" style={getLogTypeStyle(log.type)}>
+            <div className="log-header">
+              <span className="log-timestamp">{new Date(log.timestamp).toLocaleTimeString()}</span>
+              <span className="log-type">{log.type.toUpperCase()}</span>
+            </div>
+            <div className="log-message">{log.message}</div>
+            {log.data && (
+              <details className="log-data">
+                <summary>View Data</summary>
+                <pre>{JSON.stringify(log.data, null, 2)}</pre>
+              </details>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const getLogTypeStyle = (type) => {
+    const styles = {
+      info: { color: '#3498db', background: '#ebf3fd' },
+      success: { color: '#27ae60', background: '#eafaf1' },
+      error: { color: '#e74c3c', background: '#fdebea' },
+      warning: { color: '#f39c12', background: '#fef5e7' }
+    };
+    return styles[type] || styles.info;
+  };
+
   return (
     <div className="app">
       <header className="app-header">
-        <h1>🎬 AI-Powered Movie Recommendation System</h1>
-        <p>Powered by Qloo Cultural Intelligence & OpenAI GPT</p>
+        <h1>🎬 OpenRouter-Powered Movie Recommendation System</h1>
+        <p>Access to 280+ AI Models via OpenRouter</p>
         <div className="models-info">
-          <small>Available Models: {models.length} | GPT Integration: Active</small>
+          <small>Available Models: {availableModels.length} | Current: {selectedModel}</small>
         </div>
       </header>
 
@@ -333,6 +429,12 @@ export default function App() {
         >
           ⭐ Recommend
         </button>
+        <button
+          className={`tab-btn ${showDebugConsole ? 'active' : ''}`}
+          onClick={() => setShowDebugConsole(!showDebugConsole)}
+        >
+          🔧 Debug
+        </button>
       </nav>
 
       <main className="main-content">
@@ -350,7 +452,7 @@ export default function App() {
         {loading && (
           <div className="loading">
             <div className="spinner"></div>
-            <p>Processing...</p>
+            <p>Processing with {selectedModel}...</p>
           </div>
         )}
 
@@ -368,6 +470,8 @@ export default function App() {
             </div>
           </div>
         )}
+
+        {showDebugConsole && renderDebugConsole()}
       </main>
     </div>
   );
