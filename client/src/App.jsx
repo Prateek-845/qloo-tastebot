@@ -1,7 +1,13 @@
 import { useState, useEffect } from 'react';
+import axios from 'axios';
 import './App.css';
 
 const API_BASE_URL = 'http://localhost:3001';
+
+const axiosApi = axios.create({
+  baseURL: API_BASE_URL,
+  headers: { 'Content-Type': 'application/json' }
+});
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('search');
@@ -9,190 +15,118 @@ export default function App() {
   const [error, setError] = useState('');
   const [debugLogs, setDebugLogs] = useState([]);
   const [showDebugConsole, setShowDebugConsole] = useState(false);
-  
-  // Simple search state
+
   const [genre, setGenre] = useState('comedy');
   const [take, setTake] = useState(10);
   const [movies, setMovies] = useState([]);
-  
-  // OpenRouter models
+
   const [availableModels, setAvailableModels] = useState([]);
   const [selectedModel, setSelectedModel] = useState('anthropic/claude-3-haiku');
-  
-  // Chat functionality
+
   const [chatMessage, setChatMessage] = useState('');
-  const [chatResponse, setChatResponse] = useState('');
   const [chatHistory, setChatHistory] = useState([]);
-  
-  // Analysis functionality
+
   const [analysisMovie, setAnalysisMovie] = useState('');
   const [analysisType, setAnalysisType] = useState('summary');
   const [analysisResult, setAnalysisResult] = useState('');
-  
-  // Recommendation functionality
+
   const [preferences, setPreferences] = useState('');
   const [mood, setMood] = useState('');
   const [recommendations, setRecommendations] = useState('');
+
+  const apiPost = async (url, data) => {
+    try {
+      setLoading(true);
+      setError('');
+      const response = await axiosApi.post(url, data);
+      return response.data;
+    } catch (err) {
+      setError(
+        err.response?.data?.msg ||
+        err.response?.data?.details ||
+        err.message ||
+        'Something went wrong'
+      );
+      return null;
+    } finally {
+      setLoading(false);
+      setTimeout(fetchDebugLogs, 500);
+    }
+  };
+
+  const fetchDebugLogs = async () => {
+    try {
+      const { data } = await axiosApi.get('/api/debug/logs');
+      setDebugLogs(data.logs || []);
+    } catch (err) {}
+  };
+
+  const fetchAvailableModels = async () => {
+    try {
+      const { data } = await axiosApi.get('/api/openrouter/models');
+      if (data.ok) setAvailableModels(data.models);
+    } catch (err) {}
+  };
 
   useEffect(() => {
     fetchDebugLogs();
     fetchAvailableModels();
   }, []);
 
-  const fetchDebugLogs = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/debug/logs`);
-      const data = await response.json();
-      setDebugLogs(data.logs || []);
-    } catch (err) {
-      console.error('Failed to fetch debug logs:', err);
-    }
-  };
-
-  const fetchAvailableModels = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/openrouter/models`);
-      const data = await response.json();
-      if (data.ok) {
-        setAvailableModels(data.models);
-      }
-    } catch (err) {
-      console.error('Failed to fetch models:', err);
-    }
-  };
-
   const searchMovies = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    setError('');
     setMovies([]);
-    
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/movies`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ genre, take: +take })
-      });
-      
-      const data = await response.json();
-      if (!data.ok) throw new Error(data.msg || 'Search failed');
-      
-      setMovies(data.movies);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-      setTimeout(fetchDebugLogs, 500);
-    }
+    const data = await apiPost('/api/movies', { genre, take: +take });
+    if (data?.ok) setMovies(data.movies);
   };
 
   const sendChatMessage = async (e) => {
     e.preventDefault();
     if (!chatMessage.trim()) return;
-    
-    setLoading(true);
-    setError('');
-    
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/chat/movies`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          userMessage: chatMessage,
-          model: selectedModel 
-        })
-      });
-      
-      const data = await response.json();
-      if (data.error) throw new Error(data.details || 'Chat failed');
-      
-      setChatHistory(prev => [...prev, 
+    const data = await apiPost('/api/chat/movies', {
+      userMessage: chatMessage,
+      model: selectedModel
+    });
+    if (data && !data.error) {
+      setChatHistory(prev => [
+        ...prev,
         { type: 'user', message: chatMessage },
         { type: 'assistant', message: data.botReply, model: data.model }
       ]);
-      setChatResponse(data.botReply);
       setChatMessage('');
-      
-      if (data.movies) {
-        setMovies(data.movies);
-      }
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-      setTimeout(fetchDebugLogs, 500);
+      if (data.movies) setMovies(data.movies);
     }
   };
 
   const analyzeMovie = async (e) => {
     e.preventDefault();
     if (!analysisMovie.trim()) return;
-    
-    setLoading(true);
-    setError('');
-    
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/analyze/movie`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          movieTitle: analysisMovie, 
-          analysisType,
-          model: selectedModel 
-        })
-      });
-      
-      const data = await response.json();
-      if (!data.ok) throw new Error(data.details || 'Analysis failed');
-      
-      setAnalysisResult(data.analysis);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-      setTimeout(fetchDebugLogs, 500);
-    }
+    const data = await apiPost('/api/analyze/movie', {
+      movieTitle: analysisMovie,
+      analysisType,
+      model: selectedModel
+    });
+    if (data?.ok) setAnalysisResult(data.analysis);
   };
 
   const getRecommendations = async (e) => {
     e.preventDefault();
     if (!preferences.trim()) return;
-    
-    setLoading(true);
-    setError('');
-    
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/recommendations/personalized`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          preferences, 
-          mood,
-          model: selectedModel 
-        })
-      });
-      
-      const data = await response.json();
-      if (!data.ok) throw new Error(data.details || 'Recommendations failed');
-      
+    const data = await apiPost('/api/recommendations/personalized', {
+      preferences, mood, model: selectedModel
+    });
+    if (data?.ok) {
       setRecommendations(data.recommendations);
-      if (data.availableMovies) {
-        setMovies(data.availableMovies);
-      }
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-      setTimeout(fetchDebugLogs, 500);
+      if (data.availableMovies) setMovies(data.availableMovies);
     }
   };
 
   const renderModelSelector = () => (
     <div className="model-selector">
       <label>AI Model:</label>
-      <select 
+      <select
         value={selectedModel}
-        onChange={(e) => setSelectedModel(e.target.value)}
+        onChange={e => setSelectedModel(e.target.value)}
         className="model-select"
       >
         <option value="anthropic/claude-3-haiku">Claude 3 Haiku (Fast)</option>
@@ -363,7 +297,6 @@ export default function App() {
         <h3>🔍 Debug Console</h3>
         <button onClick={fetchDebugLogs} className="debug-btn">🔄 Refresh</button>
       </div>
-      
       <div className="debug-logs">
         {debugLogs.map((log) => (
           <div key={log.id} className="debug-log-entry" style={getLogTypeStyle(log.type)}>
@@ -405,25 +338,25 @@ export default function App() {
       </header>
 
       <nav className="tab-nav">
-        <button 
+        <button
           className={activeTab === 'search' ? 'active' : ''}
           onClick={() => setActiveTab('search')}
         >
           🔍 Search
         </button>
-        <button 
+        <button
           className={activeTab === 'chat' ? 'active' : ''}
           onClick={() => setActiveTab('chat')}
         >
           💬 AI Chat
         </button>
-        <button 
+        <button
           className={activeTab === 'analysis' ? 'active' : ''}
           onClick={() => setActiveTab('analysis')}
         >
           🎯 Analysis
         </button>
-        <button 
+        <button
           className={activeTab === 'recommend' ? 'active' : ''}
           onClick={() => setActiveTab('recommend')}
         >
