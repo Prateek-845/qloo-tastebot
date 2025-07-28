@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:3001'; // Adjust if needed
+const API_BASE_URL = 'http://localhost:3001';
 
-const availableModels = [
+const AI_MODELS = [
   'anthropic/claude-3-haiku',
   'anthropic/claude-3-sonnet',
   'anthropic/claude-3-opus',
@@ -16,195 +16,272 @@ const availableModels = [
   'microsoft/wizardlm-2-8x22b',
 ];
 
-export default function MovieSummaryApp() {
-  const [genre, setGenre] = useState('comedy');
-  const [releaseYearMin, setReleaseYearMin] = useState('');
-  const [releaseYearMax, setReleaseYearMax] = useState('');
-  const [take, setTake] = useState(10);
+const ENTITY_TYPES = [
+  { key: 'artist', label: 'Artist', endpoint: '/api/artist/summary', params: [
+    { name: 'bias.trends', label: 'Bias Trends', type: 'text' },
+    { name: 'filter.exclude.entities', label: 'Exclude Entities', type: 'text' },
+    { name: 'filter.parents.types', label: 'Parent Types', type: 'text' },
+    { name: 'filter.popularity.min', label: 'Popularity Min (0-1)', type: 'number' },
+    { name: 'filter.popularity.max', label: 'Popularity Max (0-1)', type: 'number' },
+    { name: 'filter.exclude.tags', label: 'Exclude Tags', type: 'text' },
+    { name: 'offset', label: 'Offset', type: 'number' },
+    { name: 'signal.demographics.age', label: 'Demographics Age', type: 'text' },
+    { name: 'take', label: 'Number to Return', type: 'number' },
+  ]},
+  { key: 'book', label: 'Book', endpoint: '/api/book/summary', params: [
+    { name: 'filter.publication_year.min', label: 'Min Publication Year', type: 'number' },
+    { name: 'filter.publication_year.max', label: 'Max Publication Year', type: 'number' },
+    { name: 'filter.popularity.min', label: 'Popularity Min (0-1)', type: 'number' },
+    { name: 'filter.popularity.max', label: 'Popularity Max (0-1)', type: 'number' },
+    { name: 'filter.exclude.tags', label: 'Exclude Tags', type: 'text' },
+    { name: 'take', label: 'Number to Return', type: 'number' },
+  ]},
+  { key: 'brand', label: 'Brand', endpoint: '/api/brand/summary', params: [
+    { name: 'bias.trends', label: 'Bias Trends', type: 'text' },
+    { name: 'filter.popularity.min', label: 'Popularity Min (0-1)', type: 'number' },
+    { name: 'filter.popularity.max', label: 'Popularity Max (0-1)', type: 'number' },
+    { name: 'take', label: 'Number to Return', type: 'number' },
+  ]},
+  { key: 'destination', label: 'Destination', endpoint: '/api/destination/summary', params: [
+    { name: 'filter.geocode.name', label: 'Geocode Name', type: 'text' },
+    { name: 'filter.geocode.country_code', label: 'Country Code', type: 'text' },
+    { name: 'filter.popularity.min', label: 'Popularity Min (0-1)', type: 'number' },
+    { name: 'filter.popularity.max', label: 'Popularity Max (0-1)', type: 'number' },
+    { name: 'signal.interests.entities', label: 'Interest Entities (comma-separated)', type: 'text', required: true },
+    { name: 'take', label: 'Number to Return', type: 'number' },
+  ]},
+  { key: 'movie', label: 'Movie', endpoint: '/api/movie/summary', params: [
+    { name: 'genre', label: 'Genre', type: 'text', required: true },
+    { name: 'filter.release_year.min', label: 'Release Year Min', type: 'number' },
+    { name: 'filter.release_year.max', label: 'Release Year Max', type: 'number' },
+    { name: 'filter.content_rating', label: 'Content Rating', type: 'text' },
+    { name: 'filter.popularity.min', label: 'Popularity Min (0-1)', type: 'number' },
+    { name: 'filter.popularity.max', label: 'Popularity Max (0-1)', type: 'number' },
+    { name: 'take', label: 'Number to Return', type: 'number' },
+  ]},
+  { key: 'person', label: 'Person', endpoint: '/api/person/summary', params: [
+    { name: 'filter.gender', label: 'Gender', type: 'text' },
+    { name: 'filter.date_of_birth.min', label: 'Date of Birth Min', type: 'date' },
+    { name: 'filter.date_of_birth.max', label: 'Date of Birth Max', type: 'date' },
+    { name: 'filter.popularity.min', label: 'Popularity Min (0-1)', type: 'number' },
+    { name: 'take', label: 'Number to Return', type: 'number' },
+  ]},
+  { key: 'place', label: 'Place', endpoint: '/api/place/summary', params: [
+    { name: 'cuisines', label: 'Cuisines (comma-separated)', type: 'text', required: true },
+    { name: 'filter.geocode.name', label: 'Geocode Name', type: 'text' },
+    { name: 'filter.price_level.min', label: 'Min Price Level', type: 'number' },
+    { name: 'filter.price_level.max', label: 'Max Price Level', type: 'number' },
+    { name: 'filter.popularity.min', label: 'Popularity Min (0-1)', type: 'number' },
+    { name: 'take', label: 'Number to Return', type: 'number' },
+  ]},
+  { key: 'podcast', label: 'Podcast', endpoint: '/api/podcast/summary', params: [
+    { name: 'filter.popularity.min', label: 'Popularity Min (0-1)', type: 'number' },
+    { name: 'take', label: 'Number to Return', type: 'number' },
+  ]},
+  { key: 'tvshow', label: 'TV Show', endpoint: '/api/tvshow/summary', params: [
+    { name: 'filter.release_year.min', label: 'Release Year Min', type: 'number' },
+    { name: 'filter.release_year.max', label: 'Release Year Max', type: 'number' },
+    { name: 'filter.popularity.min', label: 'Popularity Min (0-1)', type: 'number' },
+    { name: 'take', label: 'Number to Return', type: 'number' },
+  ]},
+];
+
+export default function QlooInsightExplorer() {
+  const [selectedEntity, setSelectedEntity] = useState(ENTITY_TYPES[0]);
+  const [paramValues, setParamValues] = useState({});
   const [userQuery, setUserQuery] = useState('');
-  const [model, setModel] = useState(availableModels[0]);
-  const [summary, setSummary] = useState('');
-  const [movieTitles, setMovieTitles] = useState('');
-  const [movieCount, setMovieCount] = useState(0);
+  const [model, setModel] = useState(AI_MODELS[0]);
+  const [result, setResult] = useState({ summary: '', titles: '', count: 0 });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  useEffect(() => {
+    setParamValues({});
+    setResult({ summary: '', titles: '', count: 0 });
+    setError('');
+    setUserQuery('');
+  }, [selectedEntity]);
+
+  const handleParamChange = (name, value) => {
+    setParamValues(prev => ({ ...prev, [name]: value }));
+  };
+
+  const validateParams = () => {
+    for (const p of selectedEntity.params) {
+      if (p.required && (!paramValues[p.name] || paramValues[p.name].toString().trim() === '')) {
+        setError(`Parameter "${p.label}" is required.`);
+        return false;
+      }
+    }
+    return true;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    setSummary('');
-    setMovieTitles('');
-    setMovieCount(0);
     setError('');
+    setResult({ summary: '', titles: '', count: 0 });
+
+    if (!validateParams()) return;
+
+    setLoading(true);
+    const body = { ...paramValues, userQuery, model };
+    if (body.cuisines && typeof body.cuisines === 'string') {
+      body.cuisines = body.cuisines.split(',').map(s => s.trim()).filter(Boolean);
+    }
+    if (body['signal.interests.entities'] && typeof body['signal.interests.entities'] === 'string') {
+      body['signal.interests.entities'] = body['signal.interests.entities'].split(',').map(s => s.trim()).filter(Boolean);
+    }
 
     try {
-      const payload = {
-        genre: genre.trim(),
-        model,
-      };
-
-      // Include optional fields only if valid
-      if (releaseYearMin) payload.releaseYearMin = Number(releaseYearMin);
-      if (releaseYearMax) payload.releaseYearMax = Number(releaseYearMax);
-      if (take) payload.take = Number(take);
-      if (userQuery.trim()) payload.userQuery = userQuery.trim();
-
-      const response = await axios.post(`${API_BASE_URL}/api/movie/summary`, payload);
-
-      if (response.data.ok) {
-        setSummary(response.data.summary || '');
-        setMovieTitles(response.data.movieTitles || '');
-        setMovieCount(response.data.movieCount || 0);
+      const { data } = await axios.post(API_BASE_URL + selectedEntity.endpoint, body);
+      if (data.ok) {
+        let countKey = `${selectedEntity.label.toLowerCase().replace(/\s/g, '')}Count`;
+        let titlesKey = `${selectedEntity.label.toLowerCase().replace(/\s/g, '')}Titles`;
+        if (!data[countKey]) {
+          countKey = Object.keys(data).find(k => k.toLowerCase().includes("count")) || countKey;
+        }
+        if (!data[titlesKey]) {
+          titlesKey = Object.keys(data).find(k => k.toLowerCase().includes("title")) || titlesKey;
+        }
+        setResult({
+          summary: data.summary || '',
+          count: data[countKey] || 0,
+          titles: data[titlesKey] || '',
+        });
       } else {
-        setError(response.data.error || response.data.message || 'Failed to get summary');
+        setError(data.error || data.message || "No data found");
       }
     } catch (err) {
-      setError(
-        err.response?.data?.error ||
-        err.response?.data?.message ||
-        err.message ||
-        'An error occurred'
-      );
+      setError(err.response?.data?.error || err.message || 'Error fetching data');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={{ maxWidth: 700, margin: 'auto', padding: 20, fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif" }}>
-      <h1 style={{ textAlign: 'center', marginBottom: 24 }}>🎬 Movie Summary (Qloo + OpenRouter)</h1>
-
+    <div style={{ maxWidth: 720, margin: '40px auto', fontFamily: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif', padding: 20 }}>
+      <h1 style={{ textAlign: 'center', marginBottom: 30 }}>Qloo Insights API Explorer with AI Summaries</h1>
+      
       <form onSubmit={handleSubmit} style={{ marginBottom: 20 }}>
-        <div style={{ marginBottom: 12 }}>
-          <label>
-            Genre:<br />
-            <input
-              type="text"
-              value={genre}
-              onChange={e => setGenre(e.target.value)}
-              required
-              placeholder="e.g. comedy, thriller, drama"
-              style={{ width: '100%', padding: 8, fontSize: 16 }}
-            />
-          </label>
-        </div>
+        <label style={{ display: 'block', marginBottom: 16 }}>
+          Select Entity Type:
+          <select
+            style={{ width: '100%', padding: 10, fontSize: 16, marginTop: 6 }}
+            value={selectedEntity.key}
+            onChange={e => {
+              const entity = ENTITY_TYPES.find(x => x.key === e.target.value);
+              setSelectedEntity(entity);
+            }}
+          >
+            {ENTITY_TYPES.map(e => <option key={e.key} value={e.key}>{e.label}</option>)}
+          </select>
+        </label>
 
-        <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
-          <label style={{ flex: 1 }}>
-            Release Year Min:<br />
-            <input
-              type="number"
-              value={releaseYearMin}
-              onChange={e => setReleaseYearMin(e.target.value)}
-              placeholder="e.g. 2000"
-              style={{ width: '100%', padding: 8, fontSize: 16 }}
-              min="1888"
-            />
+        {selectedEntity.params.map(p => (
+          <label key={p.name} style={{ display: 'block', marginBottom: 14 }}>
+            {p.label}{p.required ? '*' : ''}:
+            {p.type === 'text' && (
+              <input
+                type="text"
+                value={paramValues[p.name] || ''}
+                onChange={e => handleParamChange(p.name, e.target.value)}
+                style={{ width: '100%', padding: 10, fontSize: 16, marginTop: 6, borderRadius: 4 }}
+                required={p.required}
+              />
+            )}
+            {p.type === 'number' && (
+              <input
+                type="number"
+                value={paramValues[p.name] || ''}
+                onChange={e => handleParamChange(p.name, e.target.value)}
+                style={{ width: '100%', padding: 10, fontSize: 16, marginTop: 6, borderRadius: 4 }}
+                required={p.required}
+              />
+            )}
+            {p.type === 'date' && (
+              <input
+                type="date"
+                value={paramValues[p.name] || ''}
+                onChange={e => handleParamChange(p.name, e.target.value)}
+                style={{ width: '100%', padding: 10, fontSize: 16, marginTop: 6, borderRadius: 4 }}
+                required={p.required}
+              />
+            )}
           </label>
-          <label style={{ flex: 1 }}>
-            Release Year Max:<br />
-            <input
-              type="number"
-              value={releaseYearMax}
-              onChange={e => setReleaseYearMax(e.target.value)}
-              placeholder="e.g. 2025"
-              style={{ width: '100%', padding: 8, fontSize: 16 }}
-              min="1888"
-            />
-          </label>
-        </div>
+        ))}
 
-        <div style={{ marginBottom: 12 }}>
-          <label>
-            Number of Movies (take):<br />
-            <input
-              type="number"
-              value={take}
-              onChange={e => setTake(e.target.value)}
-              min="1"
-              max="100"
-              style={{ width: '100%', padding: 8, fontSize: 16 }}
-              placeholder="Number of movies to fetch"
-            />
-          </label>
-        </div>
+        <label style={{ display: 'block', marginBottom: 16 }}>
+          Optional message for AI Summary:
+          <textarea
+            value={userQuery}
+            onChange={e => setUserQuery(e.target.value)}
+            placeholder="Guide the AI summary generation..."
+            rows={3}
+            style={{ width: '100%', padding: 10, fontSize: 16, borderRadius: 4, marginTop: 6 }}
+          />
+        </label>
 
-        <div style={{ marginBottom: 12 }}>
-          <label>
-            Optional Message for AI:<br />
-            <textarea
-              value={userQuery}
-              onChange={e => setUserQuery(e.target.value)}
-              placeholder="e.g. Looking for fun & lighthearted movies"
-              rows={3}
-              style={{ width: '100%', padding: 8, fontSize: 16 }}
-            />
-          </label>
-        </div>
-
-        <div style={{ marginBottom: 20 }}>
-          <label>
-            Select AI Model:<br />
-            <select
-              value={model}
-              onChange={e => setModel(e.target.value)}
-              style={{ width: '100%', padding: 8, fontSize: 16 }}
-            >
-              {availableModels.map((m) => (
-                <option key={m} value={m}>{m}</option>
-              ))}
-            </select>
-          </label>
-        </div>
+        <label style={{ display: 'block', marginBottom: 24 }}>
+          Select AI Model:
+          <select
+            style={{ width: '100%', padding: 10, fontSize: 16, marginTop: 6, borderRadius: 4 }}
+            value={model}
+            onChange={e => setModel(e.target.value)}
+          >
+            {AI_MODELS.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
+        </label>
 
         <button
           type="submit"
           disabled={loading}
           style={{
             width: '100%',
-            padding: 14,
             fontSize: 18,
             fontWeight: 'bold',
-            backgroundColor: '#ff4081',
+            backgroundColor: '#0078D7',
             color: 'white',
-            border: 'none',
+            padding: 16,
             borderRadius: 6,
+            border: 'none',
             cursor: loading ? 'not-allowed' : 'pointer',
-            boxShadow: '0 4px 15px rgba(255,64,129,0.4)',
+            boxShadow: '0 6px 15px rgba(0,120,215,0.4)',
             transition: 'background-color 0.3s ease',
           }}
-          onMouseEnter={e => !loading && (e.currentTarget.style.backgroundColor = '#e91e63')}
-          onMouseLeave={e => !loading && (e.currentTarget.style.backgroundColor = '#ff4081')}
+          onMouseEnter={e => !loading && (e.currentTarget.style.backgroundColor = '#005A9E')}
+          onMouseLeave={e => !loading && (e.currentTarget.style.backgroundColor = '#0078D7')}
         >
-          {loading ? 'Generating summary...' : 'Get Movie Summary'}
+          {loading ? 'Fetching summary...' : 'Get AI Summary'}
         </button>
+
       </form>
 
       {error && (
-        <div style={{ color: '#e74c3c', fontWeight: 'bold', marginBottom: 20 }}>{error}</div>
-      )}
-
-      {summary && (
-        <div style={{
-          fontSize: 18,
-          lineHeight: 1.6,
-          backgroundColor: '#fff0f6',
-          padding: 20,
-          borderRadius: 10,
-          border: '2px solid #ff4081',
-          color: '#5a2a49',
-          whiteSpace: 'pre-wrap',
-          boxShadow: '0 8px 20px rgba(255,64,129,0.15)',
-          fontWeight: '500',
-          marginBottom: 12,
-        }}>
-          <strong>Summary:</strong><br />{summary}
+        <div style={{ color: '#d93025', fontWeight: 'bold', backgroundColor: '#fdd', padding: 12, borderRadius: 6, marginBottom: 20 }}>
+          {error}
         </div>
       )}
 
-      {movieTitles && movieCount > 0 && (
-        <div style={{ fontSize: 14, color: '#888' }}>
-          <strong>{movieCount}</strong> titles included: {movieTitles}
+      {result.summary && (
+        <div style={{
+          backgroundColor: '#e2f0d9',
+          borderRadius: 10,
+          padding: 20,
+          fontSize: 18,
+          lineHeight: 1.6,
+          color: '#333',
+          marginBottom: 20,
+          whiteSpace: 'pre-wrap',
+          boxShadow: '0 8px 20px rgba(0,128,0,0.15)'
+        }}>
+          <strong>Summary:</strong><br />
+          {result.summary}
+        </div>
+      )}
+
+      {result.titles && result.count > 0 && (
+        <div style={{ fontSize: 14, color: '#555', wordBreak: 'break-word' }}>
+          <strong>{result.count}</strong> items included: {result.titles}
         </div>
       )}
     </div>
