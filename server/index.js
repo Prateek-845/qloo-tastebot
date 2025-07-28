@@ -1,666 +1,155 @@
-import express from "express";
-import cors from "cors";
-import dotenv from "dotenv";
-import fetch from "node-fetch";
+import express from 'express';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import fetch from 'node-fetch';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 const QLOO_API_KEY = process.env.QLOO_API_KEY;
-const QLOO_BASE_URL =
-  process.env.QLOO_BASE_URL || "https://hackathon.api.qloo.com/v2/insights";
-const OPENROUTER_API_KEY =
-  process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY;
-
-let debugLogs = [];
-const MAX_LOGS = 100;
-
-function logToFrontend(type, message, data = null) {
-  const logEntry = {
-    id: Date.now() + Math.random(),
-    timestamp: new Date().toISOString(),
-    type,
-    message,
-    data,
-  };
-  debugLogs.unshift(logEntry);
-  if (debugLogs.length > MAX_LOGS) {
-    debugLogs = debugLogs.slice(0, MAX_LOGS);
-  }
-  console.log(message, data || "");
-  return logEntry;
-}
+const QLOO_BASE_URL = process.env.QLOO_BASE_URL || 'https://hackathon.api.qloo.com/v2/insights';
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 
 app.use(cors());
 app.use(express.json());
 
-logToFrontend("info", "🚀 OpenRouter-powered Movie Server initializing...");
-logToFrontend(
-  "info",
-  `🔑 QLOO_API_KEY: ${QLOO_API_KEY ? "✅ Present" : "❌ Missing"}`
-);
-logToFrontend(
-  "info",
-  `🤖 OPENROUTER_API_KEY: ${OPENROUTER_API_KEY ? "✅ Present" : "❌ Missing"}`
-);
+/**
+ * Construct Qloo API URL for movie entities with exact parameter keys matching Qloo API spec
+ */
+function buildQlooMovieURL({ genre, releaseYearMin, releaseYearMax, take }) {
+  const url = new URL(QLOO_BASE_URL);
+  url.searchParams.set('filter.type', 'urn:entity:movie');
 
-// Enhanced OpenRouter API call function
-async function callOpenRouter(messages, options = {}) {
-  const {
-    model = "anthropic/claude-3-haiku",
-    max_tokens = 800,
-    temperature = 0.7,
-    stream = false,
-  } = options;
-
-  try {
-    const response = await fetch(
-      "https://openrouter.ai/api/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": "http://localhost:3001",
-          "X-Title": "Movie Recommendation System",
-        },
-        body: JSON.stringify({
-          model,
-          messages,
-          max_tokens,
-          temperature,
-          stream,
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(
-        `OpenRouter API error: ${
-          errorData.error?.message || response.statusText
-        }`
-      );
-    }
-
-    const data = await response.json();
-    return (
-      data.choices?.[0]?.message?.content ||
-      "Sorry, I could not generate a response."
-    );
-  } catch (error) {
-    logToFrontend("error", "💥 OpenRouter API error", { error: error.message });
-    throw error;
+  if (genre) {
+    url.searchParams.set('filter.tags', `urn:tag:genre:media:${genre.toLowerCase()}`);
   }
-}
-
-// Advanced Qloo URL Builder
-function buildAdvancedQlooURL(base, params = {}) {
-  const url = new URL(base);
-
-  if (!params.filterType) {
-    throw new Error("filterType is required for all Qloo requests");
+  if (releaseYearMin) {
+    url.searchParams.set('filter.release_year.min', releaseYearMin);
   }
-  url.searchParams.set("filter.type", params.filterType);
+  if (releaseYearMax) {
+    url.searchParams.set('filter.release_year.max', releaseYearMax);
+  }
+  if (take) {
+    url.searchParams.set('take', take);
+  }
 
-  Object.entries(params).forEach(([key, value]) => {
-    if (key === "filterType" || !value) return;
-
-    const qlooKey = key.replace(/([A-Z])/g, ".$1").toLowerCase();
-
-    if (Array.isArray(value)) {
-      url.searchParams.set(qlooKey, value.join(","));
-    } else if (typeof value === "object" && value !== null) {
-      Object.entries(value).forEach(([subKey, subValue]) => {
-        if (subValue !== null && subValue !== undefined && subValue !== "") {
-          url.searchParams.set(`${qlooKey}.${subKey}`, subValue);
-        }
-      });
-    } else {
-      url.searchParams.set(qlooKey, String(value));
-    }
-  });
+  // Include explainability to help AI interpret why items were chosen (optional)
+  url.searchParams.set('feature.explainability', 'true');
 
   return url.toString();
 }
 
-// Validate primary signals
-function validatePrimarySignals(params) {
-  const primarySignals = [
-    "signalInterestsEntities",
-    "signalInterestsTags",
-    "signalLocation",
-    "signalLocationQuery",
+/**
+ * Fetch movies from Qloo API
+ */
+async function fetchMovies(params) {
+  const url = buildQlooMovieURL(params);
+  const response = await fetch(url, { headers: { 'x-api-key': QLOO_API_KEY } });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Qloo API request failed (${response.status}): ${errorText}`);
+  }
+  const data = await response.json();
+  return data.results?.entities || [];
+}
+
+/**
+ * Get AI summary from OpenRouter using precise movie data
+ */
+async function getOpenRouterSummary(movieTitles, genre, userQuery, model = 'anthropic/claude-3-haiku') {
+  if (!OPENROUTER_API_KEY) throw new Error('OpenRouter API key missing');
+
+  const messages = [
+    {
+      role: 'system',
+      content: 'You are a precise and clear movie recommendation assistant. Your responses focus strictly on movies relevant to the user’s genre request.'
+    },
+    {
+      role: 'user',
+      content: [
+        userQuery ? `User query: "${userQuery}"` : `Please summarize movies in the ${genre} genre.`,
+        `Here are movie titles: ${movieTitles}`,
+        'Provide a concise summary highlighting what makes these movies interesting and relevant to fans of the genre. Avoid generalizations and focus on specifics.'
+      ].join('\n\n')
+    }
   ];
 
-  const hasSignal = primarySignals.some((signal) => params[signal]);
-
-  if (!hasSignal) {
-    throw new Error("At least one primary signal is required");
-  }
-
-  return true;
-}
-// ─── Helpers for new domains ─────────────────────────────
-function extractCategory(text, categories) {
-  const lower = text.toLowerCase();
-  return categories.find((c) => lower.includes(c)) || categories[0];
-}
-
-const cuisineTypes = [
-  "indian",
-  "italian",
-  "mexican",
-  "japanese",
-  "thai",
-  "french",
-  "chinese",
-  "american",
-];
-const fashionStyles = [
-  "casual",
-  "formal",
-  "bohemian",
-  "vintage",
-  "minimalist",
-  "streetwear",
-  "classic",
-  "sporty",
-];
-const travelThemes = [
-  "beach",
-  "mountain",
-  "historic",
-  "urban",
-  "rural",
-  "romantic",
-  "adventure",
-];
-
-// Get available OpenRouter models
-app.get("/api/openrouter/models", async (req, res) => {
-  logToFrontend("info", "🤖 Fetching OpenRouter models");
-
-  try {
-    const response = await fetch("https://openrouter.ai/api/v1/models", {
-      headers: {
-        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch models: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    logToFrontend("success", "📦 OpenRouter models fetched", {
-      modelCount: data.data?.length || 0,
-    });
-
-    res.json({
-      ok: true,
-      models: data.data || [],
-      totalModels: data.data?.length || 0,
-    });
-  } catch (error) {
-    logToFrontend("error", "💥 OpenRouter models error", {
-      error: error.message,
-    });
-    res.status(500).json({
-      ok: false,
-      error: "Failed to fetch OpenRouter models",
-      details: error.message,
-    });
-  }
-});
-
-// Enhanced Movie Chat with OpenRouter
-app.post("/api/chat/movies", async (req, res) => {
-  const {
-    userMessage = "",
-    genre: requestedGenre,
-    model = "anthropic/claude-3-haiku",
-  } = req.body;
-
-  logToFrontend("info", "🎬 Movie chat request with OpenRouter", {
-    userMessage,
-    model,
-  });
-
-  try {
-    const genre = requestedGenre || extractGenre(userMessage);
-    logToFrontend("info", `🔍 Extracted genre: ${genre}`);
-
-    // Get movies from Qloo
-    const qlooParams = {
-      filterType: "urn:entity:movie",
-      signalInterestsTags: [`urn:tag:genre:media:${genre}`],
-      take: 5,
-    };
-
-    const qlooURL = buildAdvancedQlooURL(QLOO_BASE_URL, qlooParams);
-    logToFrontend("info", `🌐 Qloo URL: ${qlooURL}`);
-
-    const qlooResponse = await fetch(qlooURL, {
-      headers: { "x-api-key": QLOO_API_KEY },
-    });
-
-    const qlooData = await qlooResponse.json();
-    const movies = qlooData.results?.entities || [];
-
-    logToFrontend("success", "📦 Qloo response received", {
-      moviesFound: movies.length,
-    });
-
-    const movieTitles = movies.map((m) => m.title || m.name).join(", ");
-
-    // Create enhanced chat messages for OpenRouter
-    const messages = [
-      {
-        role: "system",
-        content: `You are a knowledgeable movie recommendation assistant with access to current movie data. You provide engaging, helpful recommendations and explain why movies are good choices. Always be conversational and enthusiastic about movies.`,
-      },
-      {
-        role: "user",
-        content: `User asked: "${userMessage || `Show me ${genre} movies`}"
-
-Based on the genre "${genre}", here are some relevant movies from our database: ${movieTitles}
-
-Please provide a conversational response that:
-1. Acknowledges the user's request
-2. Recommends movies from the list above
-3. Briefly explains why these movies are good choices
-4. Asks if they'd like more specific recommendations
-
-Keep it friendly and engaging!`,
-      },
-    ];
-
-    logToFrontend("info", "💬 Sending request to OpenRouter");
-
-    const botReply = await callOpenRouter(messages, {
+  const resp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': `http://localhost:${PORT}`,
+      'X-Title': 'Qloo Movie Summary Service',
+    },
+    body: JSON.stringify({
       model,
+      messages,
       max_tokens: 500,
-      temperature: 0.7,
-    });
-
-    logToFrontend("success", "📦 OpenRouter response received", {
-      model: model,
-      hasReply: !!botReply,
-    });
-
-    const finalResponse = {
-      genre,
-      userMessage,
-      botReply,
-      movies,
-      movieCount: movies.length,
-      model: model,
-    };
-
-    res.json(finalResponse);
-  } catch (error) {
-    logToFrontend("error", "💥 Movie chat error", { error: error.message });
-    res.status(500).json({
-      error: "Movie chat request failed",
-      details: error.message,
-    });
-  }
-});
-
-// Advanced Movie Analysis with OpenRouter
-app.post("/api/analyze/movie", async (req, res) => {
-  const {
-    movieTitle,
-    analysisType = "summary",
-    model = "anthropic/claude-3-haiku",
-  } = req.body;
-
-  logToFrontend("info", "🎯 Movie analysis request", {
-    movieTitle,
-    analysisType,
-    model,
+      temperature: 0.5,  // Lower temp for more focused output
+    })
   });
 
-  try {
-    let systemMessage =
-      "You are a professional movie critic and analyst with deep knowledge of cinema.";
-    let userPrompt;
-
-    switch (analysisType) {
-      case "summary":
-        userPrompt = `Provide a concise, spoiler-free summary of the movie "${movieTitle}". Include genre, main themes, and why someone might enjoy it.`;
-        break;
-      case "review":
-        userPrompt = `Write a balanced movie review for "${movieTitle}". Cover plot, acting, direction, and overall quality. Keep it under 200 words.`;
-        break;
-      case "similar":
-        userPrompt = `Suggest 5 movies similar to "${movieTitle}" and briefly explain why each is similar. Format as a numbered list.`;
-        break;
-      default:
-        userPrompt = `Tell me about the movie "${movieTitle}".`;
-    }
-
-    const messages = [
-      { role: "system", content: systemMessage },
-      { role: "user", content: userPrompt },
-    ];
-
-    const analysis = await callOpenRouter(messages, {
-      model,
-      max_tokens: 600,
-      temperature: 0.6,
-    });
-
-    logToFrontend("success", "📦 Movie analysis completed", {
-      movieTitle,
-      analysisType,
-      model,
-    });
-
-    res.json({
-      ok: true,
-      analysis,
-      movieTitle,
-      analysisType,
-      model,
-    });
-  } catch (error) {
-    logToFrontend("error", "💥 Movie analysis error", { error: error.message });
-    res.status(500).json({
-      ok: false,
-      error: "Movie analysis failed",
-      details: error.message,
-    });
-  }
-});
-
-// Personalized Recommendations with OpenRouter
-app.post("/api/recommendations/personalized", async (req, res) => {
-  const {
-    preferences,
-    mood,
-    previousMovies = [],
-    model = "anthropic/claude-3-haiku",
-  } = req.body;
-
-  logToFrontend("info", "⭐ Personalized recommendations request", {
-    preferences,
-    mood,
-    model,
-  });
-
-  try {
-    // Get movies from multiple genres based on preferences
-    const genres = preferences
-      .split(",")
-      .map((g) => g.trim())
-      .slice(0, 3);
-    const allMovies = [];
-
-    for (const genre of genres) {
-      const params = {
-        filterType: "urn:entity:movie",
-        signalInterestsTags: [`urn:tag:genre:media:${genre}`],
-        take: 3,
-      };
-
-      const response = await fetch(
-        buildAdvancedQlooURL(QLOO_BASE_URL, params),
-        {
-          headers: { "x-api-key": QLOO_API_KEY },
-        }
-      );
-
-      const data = await response.json();
-      if (data.results?.entities) {
-        allMovies.push(...data.results.entities);
-      }
-    }
-
-    const movieList = allMovies
-      .map((m) => `${m.title || m.name} (${m.year || "N/A"})`)
-      .join(", ");
-
-    const messages = [
-      {
-        role: "system",
-        content: `You are a personalized movie recommendation expert. Consider user preferences, mood, and viewing history to make tailored suggestions.`,
-      },
-      {
-        role: "user",
-        content: `User preferences: ${preferences}
-Current mood: ${mood}
-Previously watched: ${previousMovies.join(", ")}
-
-Available movies: ${movieList}
-
-Based on this information, recommend 3-5 movies from the available list that would be perfect for this user right now. For each recommendation:
-1. Explain why it matches their preferences
-2. Why it fits their current mood
-3. How it relates to their viewing history
-
-Be specific and personalized in your recommendations.`,
-      },
-    ];
-
-    const recommendations = await callOpenRouter(messages, {
-      model,
-      max_tokens: 700,
-      temperature: 0.7,
-    });
-
-    logToFrontend("success", "📦 Personalized recommendations completed", {
-      preferences,
-      mood,
-      model,
-    });
-
-    res.json({
-      ok: true,
-      recommendations,
-      availableMovies: allMovies,
-      preferences,
-      mood,
-      model,
-    });
-  } catch (error) {
-    logToFrontend("error", "💥 Personalized recommendations error", {
-      error: error.message,
-    });
-    res.status(500).json({
-      ok: false,
-      error: "Personalized recommendations failed",
-      details: error.message,
-    });
-  }
-});
-
-// ─── Dining Recommendations ─────────────────────────────
-app.post("/api/recommend/dining", async (req, res) => {
-  const { cuisine = "", location = "" } = req.body;
-  if (!location) {
-    return res.status(400).json({
-      ok: false,
-      error: "Location is required for dining recommendations.",
-    });
+  if (!resp.ok) {
+    const errData = await resp.json().catch(() => ({}));
+    const errMsg = errData.error?.message || resp.statusText || 'OpenRouter API error';
+    throw new Error(errMsg);
   }
 
-  const type = extractCategory(cuisine, cuisineTypes);
-
-  // 1) Qloo call
-  const url = buildAdvancedQlooURL(QLOO_BASE_URL, {
-    filterType: "urn:entity:restaurant",
-    signalLocationQuery: location,
-    signalInterestsTags: [`urn:tag:cuisine:media:${type}`],
-  });
-  const qlooResp = await fetch(url, { headers: { "x-api-key": QLOO_API_KEY } });
-  const qlooData = await qlooResp.json();
-  const items = qlooData?.results?.entities || [];
-
-  if (!items.length) {
-    logToFrontend("warning", "⚠️ No dining results from Qloo", {
-      cuisine,
-      location,
-      url,
-    });
-  }
-
-  // 2) LLM narrative
-  const messages = [
-    { role: "system", content: "You’re a culinary travel guide." },
-    {
-      role: "user",
-      content: `Suggest top ${type} restaurants in ${location}: ${items
-        .map((i) => i.name)
-        .join(", ")}`,
-    },
-  ];
-  const narrative = await callOpenRouter(messages);
-
-  res.json({ ok: true, items, narrative });
-});
-
-// ─── Fashion Style Suggestions ─────────────────────────
-app.post("/api/recommend/fashion", async (req, res) => {
-  const { preferences = "", season = "summer" } = req.body;
-  const style = extractCategory(preferences, fashionStyles);
-
-  const messages = [
-    { role: "system", content: "You’re a fashion stylist assistant." },
-    {
-      role: "user",
-      content: `What are best ${season} outfit ideas for someone who likes ${style}?`,
-    },
-  ];
-  const reply = await callOpenRouter(messages);
-
-  res.json({ ok: true, style, season, recommendations: reply });
-});
-
-// ─── Travel Recommendations ─────────────────────────────
-app.post("/api/recommend/travel", async (req, res) => {
-  const { interest = "", location = "" } = req.body;
-  const theme = extractCategory(interest, travelThemes);
-
-  const messages = [
-    { role: "system", content: "You’re a smart travel assistant." },
-    {
-      role: "user",
-      content: `Suggest best ${theme} destinations near ${location}.`,
-    },
-  ];
-  const recommendations = await callOpenRouter(messages);
-
-  res.json({ ok: true, theme, location, recommendations });
-});
-
-// Original simple movie search (maintained for backward compatibility)
-app.post("/api/movies", async (req, res) => {
-  const { genre = "comedy", take = 10 } = req.body;
-
-  try {
-    const params = {
-      filterType: "urn:entity:movie",
-      signalInterestsTags: [`urn:tag:genre:media:${genre}`],
-      take,
-    };
-
-    const fullURL = buildAdvancedQlooURL(QLOO_BASE_URL, params);
-    const response = await fetch(fullURL, {
-      headers: { "x-api-key": QLOO_API_KEY },
-    });
-
-    const data = await response.json();
-    res.json({ ok: true, genre, movies: data.results?.entities || [] });
-  } catch (error) {
-    res.status(500).json({ ok: false, msg: "Qloo fetch failed" });
-  }
-});
-
-// Helper function to extract genre from user message
-function extractGenre(text) {
-  const genres = [
-    "romance",
-    "comedy",
-    "horror",
-    "thriller",
-    "fiction",
-    "drama",
-    "action",
-    "sci-fi",
-    "fantasy",
-    "adventure",
-    "animation",
-    "crime",
-    "documentary",
-    "family",
-    "mystery",
-    "war",
-    "western",
-  ];
-  const lowerText = text.toLowerCase();
-  return genres.find((genre) => lowerText.includes(genre)) || "comedy";
+  const data = await resp.json();
+  return data.choices?.[0]?.message?.content || 'No summary generated';
 }
 
-// Debug endpoints
-app.get("/api/debug/logs", (req, res) => {
-  res.json({
-    logs: debugLogs,
-    totalLogs: debugLogs.length,
-    serverUptime: process.uptime(),
-  });
+// API endpoint: POST /api/movie/summary
+app.post('/api/movie/summary', async (req, res) => {
+  const {
+    genre = 'comedy',
+    releaseYearMin,
+    releaseYearMax,
+    take = 10,          // default number of movies to fetch
+    userQuery = '',
+    model = 'anthropic/claude-3-haiku'
+  } = req.body;
+
+  try {
+    // Validate genre minimally: must be string and non-empty
+    if (!genre || typeof genre !== 'string' || genre.trim() === '') {
+      return res.status(400).json({ ok: false, error: 'Genre parameter is required and must be non-empty string' });
+    }
+
+    // Fetch movies from Qloo exactly as per parameters
+    const movies = await fetchMovies({ genre: genre.trim(), releaseYearMin, releaseYearMax, take });
+
+    if (movies.length === 0) {
+      return res.status(404).json({ ok: false, message: `No movies found for genre "${genre}" with given filters.` });
+    }
+
+    // Prepare titles for AI summary
+    const movieTitles = movies.map(m => m.title || m.name).filter(Boolean).join(', ');
+
+    // Get AI-generated precise summary
+    const summary = await getOpenRouterSummary(movieTitles, genre.trim(), userQuery, model);
+
+    // Respond with minimal data: summary + movie titles + count
+    res.json({
+      ok: true,
+      genre: genre.trim(),
+      movieCount: movies.length,
+      movieTitles,
+      summary,
+    });
+  } catch (error) {
+    console.error('API error /api/movie/summary:', error);
+    res.status(500).json({ ok: false, error: error.message });
+  }
 });
 
-app.post("/api/debug/clear", (req, res) => {
-  debugLogs = [];
-  logToFrontend("info", "🧹 Debug logs cleared");
-  res.json({ message: "Logs cleared", success: true });
-});
-
-// Health check
-app.get("/health", (req, res) => {
-  res.json({
-    ok: true,
-    timestamp: Date.now(),
-    services: {
-      qloo: !!QLOO_API_KEY,
-      openrouter: !!OPENROUTER_API_KEY,
-    },
-  });
-});
-
-// Aliases for frontend compatibility
-app.all("/api/dining", (req, res) => {
-  req.url = "/api/recommend/dining";
-  app.handle(req, res);
-});
-
-app.all("/api/fashion", (req, res) => {
-  req.url = "/api/recommend/fashion";
-  app.handle(req, res);
-});
-
-app.all("/api/travel", (req, res) => {
-  req.url = "/api/recommend/travel";
-  app.handle(req, res);
+// Simple health check
+app.get('/health', (_req, res) => {
+  res.json({ ok: true, timestamp: Date.now() });
 });
 
 app.listen(PORT, () => {
-  logToFrontend(
-    "success",
-    `🚀 OpenRouter-powered server running on port ${PORT}`
-  );
-  logToFrontend(
-    "info",
-    `🎬 Qloo API: ${QLOO_API_KEY ? "✅ Connected" : "❌ Missing Key"}`
-  );
-  logToFrontend(
-    "info",
-    `🤖 OpenRouter API: ${
-      OPENROUTER_API_KEY ? "✅ Connected" : "❌ Missing Key"
-    }`
-  );
+  console.log(`🎬 Movie summary backend running at http://localhost:${PORT}`);
 });
