@@ -1,3 +1,4 @@
+import './App.css';
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
@@ -17,73 +18,118 @@ const AI_MODELS = [
 ];
 
 const ENTITY_TYPES = [
-  { key: 'artist', label: 'Artist', endpoint: '/api/artist/summary', params: [
-    { name: 'bias.trends', label: 'Bias Trends', type: 'text' },
-    { name: 'filter.exclude.entities', label: 'Exclude Entities', type: 'text' },
-    { name: 'filter.parents.types', label: 'Parent Types', type: 'text' },
-    { name: 'filter.popularity.min', label: 'Popularity Min (0-1)', type: 'number' },
-    { name: 'filter.popularity.max', label: 'Popularity Max (0-1)', type: 'number' },
-    { name: 'filter.exclude.tags', label: 'Exclude Tags', type: 'text' },
-    { name: 'offset', label: 'Offset', type: 'number' },
-    { name: 'signal.demographics.age', label: 'Demographics Age', type: 'text' },
-    { name: 'take', label: 'Number to Return', type: 'number' },
-  ]},
-  { key: 'book', label: 'Book', endpoint: '/api/book/summary', params: [
-    { name: 'filter.publication_year.min', label: 'Min Publication Year', type: 'number' },
-    { name: 'filter.publication_year.max', label: 'Max Publication Year', type: 'number' },
-    { name: 'filter.popularity.min', label: 'Popularity Min (0-1)', type: 'number' },
-    { name: 'filter.popularity.max', label: 'Popularity Max (0-1)', type: 'number' },
-    { name: 'filter.exclude.tags', label: 'Exclude Tags', type: 'text' },
-    { name: 'take', label: 'Number to Return', type: 'number' },
-  ]},
-  { key: 'brand', label: 'Brand', endpoint: '/api/brand/summary', params: [
-    { name: 'bias.trends', label: 'Bias Trends', type: 'text' },
-    { name: 'filter.popularity.min', label: 'Popularity Min (0-1)', type: 'number' },
-    { name: 'filter.popularity.max', label: 'Popularity Max (0-1)', type: 'number' },
-    { name: 'take', label: 'Number to Return', type: 'number' },
-  ]},
-  { key: 'destination', label: 'Destination', endpoint: '/api/destination/summary', params: [
-    { name: 'filter.geocode.name', label: 'Geocode Name', type: 'text' },
-    { name: 'filter.geocode.country_code', label: 'Country Code', type: 'text' },
-    { name: 'filter.popularity.min', label: 'Popularity Min (0-1)', type: 'number' },
-    { name: 'filter.popularity.max', label: 'Popularity Max (0-1)', type: 'number' },
-    { name: 'signal.interests.entities', label: 'Interest Entities (comma-separated)', type: 'text', required: true },
-    { name: 'take', label: 'Number to Return', type: 'number' },
-  ]},
-  { key: 'movie', label: 'Movie', endpoint: '/api/movie/summary', params: [
-    { name: 'genre', label: 'Genre', type: 'text', required: true },
-    { name: 'filter.release_year.min', label: 'Release Year Min', type: 'number' },
-    { name: 'filter.release_year.max', label: 'Release Year Max', type: 'number' },
-    { name: 'filter.content_rating', label: 'Content Rating', type: 'text' },
-    { name: 'filter.popularity.min', label: 'Popularity Min (0-1)', type: 'number' },
-    { name: 'filter.popularity.max', label: 'Popularity Max (0-1)', type: 'number' },
-    { name: 'take', label: 'Number to Return', type: 'number' },
-  ]},
-  { key: 'person', label: 'Person', endpoint: '/api/person/summary', params: [
-    { name: 'filter.gender', label: 'Gender', type: 'text' },
-    { name: 'filter.date_of_birth.min', label: 'Date of Birth Min', type: 'date' },
-    { name: 'filter.date_of_birth.max', label: 'Date of Birth Max', type: 'date' },
-    { name: 'filter.popularity.min', label: 'Popularity Min (0-1)', type: 'number' },
-    { name: 'take', label: 'Number to Return', type: 'number' },
-  ]},
-  { key: 'place', label: 'Place', endpoint: '/api/place/summary', params: [
-    { name: 'cuisines', label: 'Cuisines (comma-separated)', type: 'text', required: true },
-    { name: 'filter.geocode.name', label: 'Geocode Name', type: 'text' },
-    { name: 'filter.price_level.min', label: 'Min Price Level', type: 'number' },
-    { name: 'filter.price_level.max', label: 'Max Price Level', type: 'number' },
-    { name: 'filter.popularity.min', label: 'Popularity Min (0-1)', type: 'number' },
-    { name: 'take', label: 'Number to Return', type: 'number' },
-  ]},
-  { key: 'podcast', label: 'Podcast', endpoint: '/api/podcast/summary', params: [
-    { name: 'filter.popularity.min', label: 'Popularity Min (0-1)', type: 'number' },
-    { name: 'take', label: 'Number to Return', type: 'number' },
-  ]},
-  { key: 'tvshow', label: 'TV Show', endpoint: '/api/tvshow/summary', params: [
-    { name: 'filter.release_year.min', label: 'Release Year Min', type: 'number' },
-    { name: 'filter.release_year.max', label: 'Release Year Max', type: 'number' },
-    { name: 'filter.popularity.min', label: 'Popularity Min (0-1)', type: 'number' },
-    { name: 'take', label: 'Number to Return', type: 'number' },
-  ]},
+  {
+    key: 'artist',
+    label: 'Artist',
+    endpoint: '/api/artist/summary',
+    params: [
+      { name: 'bias.trends', label: 'Bias Trends', type: 'text' },
+      { name: 'filter.exclude.entities', label: 'Exclude Entities', type: 'text' },
+      { name: 'filter.parents.types', label: 'Parent Types', type: 'text' },
+      { name: 'filter.popularity.min', label: 'Popularity Min (0-1)', type: 'number' },
+      { name: 'filter.popularity.max', label: 'Popularity Max (0-1)', type: 'number' },
+      { name: 'filter.exclude.tags', label: 'Exclude Tags', type: 'text' },
+      { name: 'offset', label: 'Offset', type: 'number' },
+      { name: 'signal.demographics.age', label: 'Demographics Age', type: 'text' },
+      { name: 'take', label: 'Number to Return', type: 'number' },
+    ],
+  },
+  {
+    key: 'book',
+    label: 'Book',
+    endpoint: '/api/book/summary',
+    params: [
+      { name: 'filter.publication_year.min', label: 'Min Publication Year', type: 'number' },
+      { name: 'filter.publication_year.max', label: 'Max Publication Year', type: 'number' },
+      { name: 'filter.popularity.min', label: 'Popularity Min (0-1)', type: 'number' },
+      { name: 'filter.popularity.max', label: 'Popularity Max (0-1)', type: 'number' },
+      { name: 'filter.exclude.tags', label: 'Exclude Tags', type: 'text' },
+      { name: 'take', label: 'Number to Return', type: 'number' },
+    ],
+  },
+  {
+    key: 'brand',
+    label: 'Brand',
+    endpoint: '/api/brand/summary',
+    params: [
+      { name: 'bias.trends', label: 'Bias Trends', type: 'text' },
+      { name: 'filter.popularity.min', label: 'Popularity Min (0-1)', type: 'number' },
+      { name: 'filter.popularity.max', label: 'Popularity Max (0-1)', type: 'number' },
+      { name: 'take', label: 'Number to Return', type: 'number' },
+    ],
+  },
+  {
+    key: 'destination',
+    label: 'Destination',
+    endpoint: '/api/destination/summary',
+    params: [
+      { name: 'filter.geocode.name', label: 'Geocode Name', type: 'text' },
+      { name: 'filter.geocode.country_code', label: 'Country Code', type: 'text' },
+      { name: 'filter.popularity.min', label: 'Popularity Min (0-1)', type: 'number' },
+      { name: 'filter.popularity.max', label: 'Popularity Max (0-1)', type: 'number' },
+      { name: 'signal.interests.entities', label: 'Interest Entities (comma-separated)', type: 'text', required: true },
+      { name: 'take', label: 'Number to Return', type: 'number' },
+    ],
+  },
+  {
+    key: 'movie',
+    label: 'Movie',
+    endpoint: '/api/movie/summary',
+    params: [
+      { name: 'genre', label: 'Genre', type: 'text', required: true },
+      { name: 'filter.release_year.min', label: 'Release Year Min', type: 'number' },
+      { name: 'filter.release_year.max', label: 'Release Year Max', type: 'number' },
+      { name: 'filter.content_rating', label: 'Content Rating', type: 'text' },
+      { name: 'filter.popularity.min', label: 'Popularity Min (0-1)', type: 'number' },
+      { name: 'filter.popularity.max', label: 'Popularity Max (0-1)', type: 'number' },
+      { name: 'take', label: 'Number to Return', type: 'number' },
+    ],
+  },
+  {
+    key: 'person',
+    label: 'Person',
+    endpoint: '/api/person/summary',
+    params: [
+      { name: 'filter.gender', label: 'Gender', type: 'text' },
+      { name: 'filter.date_of_birth.min', label: 'Date of Birth Min', type: 'date' },
+      { name: 'filter.date_of_birth.max', label: 'Date of Birth Max', type: 'date' },
+      { name: 'filter.popularity.min', label: 'Popularity Min (0-1)', type: 'number' },
+      { name: 'take', label: 'Number to Return', type: 'number' },
+    ],
+  },
+  {
+    key: 'place',
+    label: 'Place',
+    endpoint: '/api/place/summary',
+    params: [
+      { name: 'cuisines', label: 'Cuisines (comma-separated)', type: 'text', required: true },
+      { name: 'filter.geocode.name', label: 'Geocode Name', type: 'text' },
+      { name: 'filter.price_level.min', label: 'Min Price Level', type: 'number' },
+      { name: 'filter.price_level.max', label: 'Max Price Level', type: 'number' },
+      { name: 'filter.popularity.min', label: 'Popularity Min (0-1)', type: 'number' },
+      { name: 'take', label: 'Number to Return', type: 'number' },
+    ],
+  },
+  {
+    key: 'podcast',
+    label: 'Podcast',
+    endpoint: '/api/podcast/summary',
+    params: [
+      { name: 'filter.popularity.min', label: 'Popularity Min (0-1)', type: 'number' },
+      { name: 'take', label: 'Number to Return', type: 'number' },
+    ],
+  },
+  {
+    key: 'tvshow',
+    label: 'TV Show',
+    endpoint: '/api/tvshow/summary',
+    params: [
+      { name: 'filter.release_year.min', label: 'Release Year Min', type: 'number' },
+      { name: 'filter.release_year.max', label: 'Release Year Max', type: 'number' },
+      { name: 'filter.popularity.min', label: 'Popularity Min (0-1)', type: 'number' },
+      { name: 'take', label: 'Number to Return', type: 'number' },
+    ],
+  },
 ];
 
 export default function QlooInsightExplorer() {
@@ -103,7 +149,7 @@ export default function QlooInsightExplorer() {
   }, [selectedEntity]);
 
   const handleParamChange = (name, value) => {
-    setParamValues(prev => ({ ...prev, [name]: value }));
+    setParamValues((prev) => ({ ...prev, [name]: value }));
   };
 
   const validateParams = () => {
@@ -125,11 +171,13 @@ export default function QlooInsightExplorer() {
 
     setLoading(true);
     const body = { ...paramValues, userQuery, model };
+
+    // Handle comma-separated strings into arrays for certain params
     if (body.cuisines && typeof body.cuisines === 'string') {
-      body.cuisines = body.cuisines.split(',').map(s => s.trim()).filter(Boolean);
+      body.cuisines = body.cuisines.split(',').map((s) => s.trim()).filter(Boolean);
     }
     if (body['signal.interests.entities'] && typeof body['signal.interests.entities'] === 'string') {
-      body['signal.interests.entities'] = body['signal.interests.entities'].split(',').map(s => s.trim()).filter(Boolean);
+      body['signal.interests.entities'] = body['signal.interests.entities'].split(',').map((s) => s.trim()).filter(Boolean);
     }
 
     try {
@@ -138,10 +186,10 @@ export default function QlooInsightExplorer() {
         let countKey = `${selectedEntity.label.toLowerCase().replace(/\s/g, '')}Count`;
         let titlesKey = `${selectedEntity.label.toLowerCase().replace(/\s/g, '')}Titles`;
         if (!data[countKey]) {
-          countKey = Object.keys(data).find(k => k.toLowerCase().includes("count")) || countKey;
+          countKey = Object.keys(data).find((k) => k.toLowerCase().includes('count')) || countKey;
         }
         if (!data[titlesKey]) {
-          titlesKey = Object.keys(data).find(k => k.toLowerCase().includes("title")) || titlesKey;
+          titlesKey = Object.keys(data).find((k) => k.toLowerCase().includes('title')) || titlesKey;
         }
         setResult({
           summary: data.summary || '',
@@ -149,7 +197,7 @@ export default function QlooInsightExplorer() {
           titles: data[titlesKey] || '',
         });
       } else {
-        setError(data.error || data.message || "No data found");
+        setError(data.error || data.message || 'No data found');
       }
     } catch (err) {
       setError(err.response?.data?.error || err.message || 'Error fetching data');
@@ -159,131 +207,133 @@ export default function QlooInsightExplorer() {
   };
 
   return (
-    <div style={{ maxWidth: 720, margin: '40px auto', fontFamily: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif', padding: 20 }}>
-      <h1 style={{ textAlign: 'center', marginBottom: 30 }}>Qloo Insights API Explorer with AI Summaries</h1>
-      
-      <form onSubmit={handleSubmit} style={{ marginBottom: 20 }}>
-        <label style={{ display: 'block', marginBottom: 16 }}>
-          Select Entity Type:
-          <select
-            style={{ width: '100%', padding: 10, fontSize: 16, marginTop: 6 }}
-            value={selectedEntity.key}
-            onChange={e => {
-              const entity = ENTITY_TYPES.find(x => x.key === e.target.value);
-              setSelectedEntity(entity);
-            }}
-          >
-            {ENTITY_TYPES.map(e => <option key={e.key} value={e.key}>{e.label}</option>)}
-          </select>
-        </label>
+    <div className="app" aria-live="polite">
+      <header className="app-header">
+        <h1>Qloo Insights API Explorer with AI Summaries</h1>
+        <p>Discover personalized taste-based recommendations using Qloo and AI.</p>
+      </header>
 
-        {selectedEntity.params.map(p => (
-          <label key={p.name} style={{ display: 'block', marginBottom: 14 }}>
-            {p.label}{p.required ? '*' : ''}:
-            {p.type === 'text' && (
-              <input
-                type="text"
-                value={paramValues[p.name] || ''}
-                onChange={e => handleParamChange(p.name, e.target.value)}
-                style={{ width: '100%', padding: 10, fontSize: 16, marginTop: 6, borderRadius: 4 }}
-                required={p.required}
-              />
-            )}
-            {p.type === 'number' && (
-              <input
-                type="number"
-                value={paramValues[p.name] || ''}
-                onChange={e => handleParamChange(p.name, e.target.value)}
-                style={{ width: '100%', padding: 10, fontSize: 16, marginTop: 6, borderRadius: 4 }}
-                required={p.required}
-              />
-            )}
-            {p.type === 'date' && (
-              <input
-                type="date"
-                value={paramValues[p.name] || ''}
-                onChange={e => handleParamChange(p.name, e.target.value)}
-                style={{ width: '100%', padding: 10, fontSize: 16, marginTop: 6, borderRadius: 4 }}
-                required={p.required}
-              />
-            )}
+      <main className="main-content" role="main">
+        <form className="chat-form" onSubmit={handleSubmit} aria-busy={loading}>
+          <label className="form-group" htmlFor="entity-select">
+            Select Entity Type:
+            <select
+              id="entity-select"
+              className="genre-select"
+              value={selectedEntity.key}
+              onChange={(e) => {
+                const entity = ENTITY_TYPES.find((x) => x.key === e.target.value);
+                setSelectedEntity(entity);
+              }}
+            >
+              {ENTITY_TYPES.map((e) => (
+                <option key={e.key} value={e.key}>
+                  {e.label}
+                </option>
+              ))}
+            </select>
           </label>
-        ))}
 
-        <label style={{ display: 'block', marginBottom: 16 }}>
-          Optional message for AI Summary:
-          <textarea
-            value={userQuery}
-            onChange={e => setUserQuery(e.target.value)}
-            placeholder="Guide the AI summary generation..."
-            rows={3}
-            style={{ width: '100%', padding: 10, fontSize: 16, borderRadius: 4, marginTop: 6 }}
-          />
-        </label>
+          {selectedEntity.params.map((p) => (
+            <label key={p.name} className="form-group" htmlFor={p.name}>
+              {p.label}
+              {p.required ? '*' : ''}:
+              {p.type === 'text' && (
+                <input
+                  id={p.name}
+                  type="text"
+                  className="filter-input"
+                  value={paramValues[p.name] || ''}
+                  onChange={(e) => handleParamChange(p.name, e.target.value)}
+                  required={p.required}
+                  placeholder={p.label}
+                />
+              )}
+              {p.type === 'number' && (
+                <input
+                  id={p.name}
+                  type="number"
+                  className="filter-input"
+                  value={paramValues[p.name] || ''}
+                  onChange={(e) => handleParamChange(p.name, e.target.value)}
+                  required={p.required}
+                  placeholder={p.label}
+                />
+              )}
+              {p.type === 'date' && (
+                <input
+                  id={p.name}
+                  type="date"
+                  className="filter-input"
+                  value={paramValues[p.name] || ''}
+                  onChange={(e) => handleParamChange(p.name, e.target.value)}
+                  required={p.required}
+                />
+              )}
+            </label>
+          ))}
 
-        <label style={{ display: 'block', marginBottom: 24 }}>
-          Select AI Model:
-          <select
-            style={{ width: '100%', padding: 10, fontSize: 16, marginTop: 6, borderRadius: 4 }}
-            value={model}
-            onChange={e => setModel(e.target.value)}
-          >
-            {AI_MODELS.map(m => <option key={m} value={m}>{m}</option>)}
-          </select>
-        </label>
+          <label className="form-group" htmlFor="userQuery">
+            Optional message for AI Summary:
+            <textarea
+              id="userQuery"
+              className="message-input"
+              value={userQuery}
+              onChange={(e) => setUserQuery(e.target.value)}
+              placeholder="Guide the AI summary generation..."
+              rows={3}
+            />
+          </label>
 
-        <button
-          type="submit"
-          disabled={loading}
-          style={{
-            width: '100%',
-            fontSize: 18,
-            fontWeight: 'bold',
-            backgroundColor: '#0078D7',
-            color: 'white',
-            padding: 16,
-            borderRadius: 6,
-            border: 'none',
-            cursor: loading ? 'not-allowed' : 'pointer',
-            boxShadow: '0 6px 15px rgba(0,120,215,0.4)',
-            transition: 'background-color 0.3s ease',
-          }}
-          onMouseEnter={e => !loading && (e.currentTarget.style.backgroundColor = '#005A9E')}
-          onMouseLeave={e => !loading && (e.currentTarget.style.backgroundColor = '#0078D7')}
-        >
-          {loading ? 'Fetching summary...' : 'Get AI Summary'}
-        </button>
+          <label className="form-group" htmlFor="model-select">
+            Select AI Model:
+            <select
+              id="model-select"
+              className="genre-select"
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+            >
+              {AI_MODELS.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          </label>
 
-      </form>
+          <button type="submit" disabled={loading} className="submit-btn" aria-disabled={loading}>
+            {loading ? 'Fetching summary...' : 'Get AI Summary'}
+          </button>
+        </form>
 
-      {error && (
-        <div style={{ color: '#d93025', fontWeight: 'bold', backgroundColor: '#fdd', padding: 12, borderRadius: 6, marginBottom: 20 }}>
-          {error}
-        </div>
-      )}
+        {error && (
+          <div className="error-message" role="alert" aria-live="assertive" tabIndex={-1}>
+            {error}
+          </div>
+        )}
 
-      {result.summary && (
-        <div style={{
-          backgroundColor: '#e2f0d9',
-          borderRadius: 10,
-          padding: 20,
-          fontSize: 18,
-          lineHeight: 1.6,
-          color: '#333',
-          marginBottom: 20,
-          whiteSpace: 'pre-wrap',
-          boxShadow: '0 8px 20px rgba(0,128,0,0.15)'
-        }}>
-          <strong>Summary:</strong><br />
-          {result.summary}
-        </div>
-      )}
+        {loading && (
+          <section className="loading" aria-live="polite" aria-label="Loading">
+            <div className="spinner" />
+            <p>Fetching recommendations...</p>
+          </section>
+        )}
 
-      {result.titles && result.count > 0 && (
-        <div style={{ fontSize: 14, color: '#555', wordBreak: 'break-word' }}>
-          <strong>{result.count}</strong> items included: {result.titles}
-        </div>
-      )}
+        {result.summary && (
+          <section className="chat-response">
+            <div className="ai-message" tabIndex={0}>
+              <strong>Summary:</strong>
+              <p style={{ whiteSpace: 'pre-wrap' }}>{result.summary}</p>
+            </div>
+          </section>
+        )}
+
+        {result.titles && result.count > 0 && (
+          <section style={{ marginTop: 20, fontSize: 14, color: '#555', wordBreak: 'break-word' }} aria-label="Recommendation titles">
+            <strong>{result.count}</strong> items included: {result.titles}
+          </section>
+        )}
+      </main>
     </div>
   );
 }
