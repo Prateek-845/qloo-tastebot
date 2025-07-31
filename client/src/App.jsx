@@ -209,7 +209,7 @@ export default function QlooInsightExplorer() {
   return (
     <div className="app" aria-live="polite">
       <header className="app-header">
-        <h1>Qloo Insights API Explorer with AI Summaries</h1>
+        <h1>QFusion</h1>
         <p>Discover personalized taste-based recommendations using Qloo and AI.</p>
       </header>
 
