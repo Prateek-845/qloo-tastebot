@@ -37,8 +37,9 @@ This project was developed for the **Qloo LLM Hackathon** and demonstrates how t
 
 ## Demo
 
-[Click here to view the demo video](https://www.youtube.com/your-demo-video-link)  
-*Please replace the above link with your actual demo video URL.*
+[Click here to view the demo video](https://youtu.be/JkXBwzYhFXg)
+
+You can **try the live app here**: [https://qfusion-frontend.onrender.com](https://qfusion-frontend.onrender.com)
 
 ---
 
@@ -71,7 +72,8 @@ This project was developed for the **Qloo LLM Hackathon** and demonstrates how t
 7. **Start the frontend:**
 
 8. **Access the app:**  
-Open [http://localhost:5173](http://localhost:5173) in your browser (or the port Vite shows).
+   - Open [http://localhost:5173](http://localhost:5173) in your browser (or the port Vite shows) for local development  
+   - Or access the **deployed app** at [https://qfusion-frontend.onrender.com](https://qfusion-frontend.onrender.com)
 
 ---
 
@@ -88,8 +90,8 @@ Both must be running concurrently for the app to work properly.
 
 ### Server `.env`
 
-| Variable          | Description                                 | Example                              |
-|-------------------|---------------------------------------------|------------------------------------|
+| Variable            | Description                                 | Example                              |
+|---------------------|---------------------------------------------|------------------------------------|
 | `QLOO_API_KEY`       | Your Qloo Taste AI™ API key                  | `zwVscAsY50zu7mVlwscQLzz73AMQ7DCArLOw3g8iL4Y` |
 | `QLOO_API_URL`       | Base URL for Qloo API                         | `https://hackathon.api.qloo.com`   |
 | `OPENROUTER_API_KEY` | API key for OpenRouter LLM API service       | `sk-or-v1-examplekeyhere`           |
@@ -114,6 +116,7 @@ Both must be running concurrently for the app to work properly.
 - **View Results:** Summaries and the list of included items appear below the form.
 
 ---
+
 
 ## Project Structure
 ```
@@ -143,13 +146,15 @@ qloo-tastebot/
 ```
 ---
 
+---
+
 ## Contributing
 
 Contributions are welcome! Feel free to:
 
-- Open issues to report bugs or request features
-- Submit pull requests with improvements or fixes
-- Suggest enhancements through discussions or issues
+- Open issues to report bugs or request features  
+- Submit pull requests with improvements or fixes  
+- Suggest enhancements through discussions or issues  
 
 ---
 
