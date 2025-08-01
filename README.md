@@ -1,4 +1,4 @@
-# Qloo TasteBot — Personalized Taste-Based Recommendations
+# QFusion (The Future CultureLens) 
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
