@@ -2,7 +2,8 @@ import './App.css';
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:3001';
+const API_BASE_URL = window?.location?.hostname === 'localhost' ? 'http://localhost:3001' : 'https://qfusion-backend.onrender.com';
+
 
 const AI_MODELS = [
   'anthropic/claude-3-haiku',
